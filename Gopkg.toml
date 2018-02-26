@@ -26,12 +26,8 @@
 
 
 [[constraint]]
-  name = "github.com/ktrysmt/go-bitbucket"
+  name = "github.com/srgrn/go-bitbucket"
   version = "0.3.0"
-
-[[constraint]]
-  name = "gopkg.in/src-d/go-git.v4"
-  version = "4.1.1"
 
 [prune]
   go-tests = true
