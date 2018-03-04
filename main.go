@@ -2,10 +2,12 @@ package main
 
 import (
 	"flag"
-	"github.com/src-d/go-git/transport/http"
+	"fmt"
 	"github.com/srgrn/bitbucket-api/swagger"
 	"golang.org/x/net/context"
 	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing/transport/ssh"
+	// "io/ioutil"
 	"log"
 	"os"
 	"sync"
@@ -25,43 +27,46 @@ func main() {
 		log.Println("Using password from environment")
 		password = getEnvVarOrExit("BITBUCKET_PASSWORD")
 	}
-	// client := swagger.NewAPIClient(swagger.NewConfiguration())
-	// auth_ctx := context.WithValue(context.Background(), swagger.ContextBasicAuth, swagger.BasicAuth{
-	// 	UserName: *username,
-	// 	Password: *password,
-	// })
+	client := swagger.NewAPIClient(swagger.NewConfiguration())
+	auth_ctx := context.WithValue(context.Background(), swagger.ContextBasicAuth, swagger.BasicAuth{
+		UserName: *username,
+		Password: *password,
+	})
 
-	clone(username, password, "bridge", "https://bitbucket.org/eranzimbler/bridge.git")
-	// for name, url := range get_repositories(client, auth_ctx, *username) {
-	// 	log.Println(name, url)
-	// 	wg.Add(1)
-	// 	go func() {
-	// 		defer wg.Done()
-	// 		clone(username, password, name, url)
-	// 	}()
-	// }
+	// clone("bridge", "git@bitbucket.org:eranzimbler/bridge.git")
+	for name, url := range get_repositories(client, auth_ctx, *username) {
+		wg.Add(1)
+		go func(n, u string) {
+			defer wg.Done()
+			log.Println(n, u)
+			clone(n, u)
+		}(fmt.Sprintf("%s/%s", "output", name), url)
+	}
 	wg.Wait()
 	log.Println("Ending")
 }
 
-func clone(username *string, password *string, directory string, url string) {
-	// log.Println(*username, *password, directory, url)
-	r, err := git.PlainClone(directory, true, &git.CloneOptions{
+func clone(directory string, url string) {
+	// log.Println(directory, url)
+	auth, err := ssh.NewPublicKeysFromFile("git", fmt.Sprintf("%s/.ssh/id_rsa", os.Getenv("HOME")), "")
+
+	_, err = git.PlainClone(directory, false, &git.CloneOptions{
 		URL:               url,
 		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
-		Auth:              &http.BasicAuth{Username: *username, Password: *password},
+		Auth:              auth,
 	})
 	if err != nil {
 		log.Fatalln(directory, err)
 	}
-	log.Println(r)
+	// log.Println(r)
 }
 
 func get_repositories(client *swagger.APIClient, ctx context.Context, username string) map[string]string {
 	repos := make(map[string]string)
 	repositories, _, _ := client.RepositoriesApi.RepositoriesUsernameGet(ctx, username, nil)
 	for _, repo := range repositories.Values {
-		repos[repo.Name] = repo.Links.Clone[0].Href
+		// fmt.Println(repo.Links)
+		repos[repo.Name] = repo.Links.Clone[1].Href
 	}
 	return repos
 }
